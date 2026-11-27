@@ -29,6 +29,7 @@ class BatteryService : Service() {
     private var highTriggered = false
     private var lowTriggered = false
     private var tempTriggered = false
+    private var alarmActive = false
     private var lastLevel = -1
     private var lastCharging: Boolean? = null
 
@@ -102,6 +103,12 @@ class BatteryService : Service() {
                 trigger("🌡️ Suhu baterai ${"%.1f".format(temp)}°C (batas $tLimit°C).")
             }
         } else if (temp < tLimit - 2) tempTriggered = false
+
+        // Alarm mati otomatis bila kondisi pemicu sudah tidak berlaku:
+        // penuh -> adaptor dicabut, habis -> adaptor dicolok, suhu sudah turun.
+        if (alarmActive && !highTriggered && !lowTriggered && !tempTriggered) {
+            stopAlarm()
+        }
     }
 
     private fun trigger(msg: String) {
@@ -120,7 +127,7 @@ class BatteryService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = Notification.Builder(this, CH_ALARM)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle("ALARM BATERAI")
             .setContentText(msg)
             .setStyle(Notification.BigTextStyle().bigText(msg))
@@ -131,6 +138,7 @@ class BatteryService : Service() {
             .build()
         getSystemService(NotificationManager::class.java).notify(2, n)
 
+        alarmActive = true
         if (player?.isPlaying == true) return
         try {
             val am = getSystemService(AudioManager::class.java)
@@ -160,6 +168,7 @@ class BatteryService : Service() {
     }
 
     private fun stopAlarm() {
+        alarmActive = false
         try { player?.stop(); player?.release() } catch (_: Exception) {}
         player = null
         vibrator?.cancel()
@@ -226,7 +235,7 @@ class BatteryService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return Notification.Builder(this, CH_MONITOR)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_charging)
+            .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle("Pemantau Baterai aktif")
             .setContentText(text)
             .setContentIntent(openPi)
